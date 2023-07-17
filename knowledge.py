@@ -11,7 +11,6 @@ class Symbol:
         instance = self.findInList(model)
         return model[instance].value
     def findInList(self, model):
-        print(type(model))
         for instance in range(len(model)) : 
             
             if model[instance].name == self.name : 
@@ -210,7 +209,8 @@ class ModelSpace:
     def modelCheckingInfer(self, sentence, knowledge):
         allWorlds =  self.generateAllPossibleModes()
         for world in allWorlds : 
-            
+            print("===")
+            print(knowledge.modelIsTrue(world))
             if knowledge.modelIsTrue(world) and sentence.evaluate(world) == False:
                 for symbol in world : 
                     print(symbol.name + " " + str(symbol.value))
@@ -222,12 +222,17 @@ class KnowledgeBase:
         self.knowledge.extend(knowledge)
     def modelIsTrue(self, testingModel):
         for condition in self.knowledge : 
+            print([(x.name, x.value) for x in testingModel])
+            print(getStringRepresentation(condition))
+            print("so what it is " + str(condition.evaluate(testingModel)))
             if condition.evaluate(testingModel) == False :
                 return False
         return True    
 def getStringRepresentation(symbol):
         val1String = ""
         val2String = ""
+        if type(symbol) == Symbol:
+            return symbol.name
         if type(symbol.val1) == Symbol : 
             val1String = symbol.val1.name
         else : 
@@ -242,40 +247,46 @@ def biconditionalElimation(symbol):
     return And(Implication(symbol.val2, symbol.val1), Implication(symbol.val1, symbol.val2))
 def implicationElimination(symbol):
     return Or(Not(symbol.val1), symbol.val2)
-def notElimination(symbol):
-    if type(symbol.val1)  == Symbol : 
-        return symbol
-    elif type(symbol.val1) == Not : 
+
+def notElimination(symbol, depth = 0):
+    if type(symbol.val1) == Not : 
         return symbol.val1.val1
-    else : 
-        print("here")
-        symbol.val1.val1 = Not(symbol.val1.val1)
-        symbol.val1.val2 = Not(symbol.val1.val2)
-        print(getStringRepresentation(symbol.val1))
-        return symbol.val1
+    elif type(symbol.val1) != Symbol : 
+        
+        if type(symbol.val1) == And : 
+            return Or( Not(symbol.val1.val1),  Not(symbol.val1.val2))
+        else : 
+            return And( Not(symbol.val1.val1),  Not(symbol.val1.val2))
+    
 def recursionAlgorithm(detection, elimination, node, depth = 0): 
-    if type(node) == Symbol : 
+    if type(node) == Symbol or (type(node) == Not and type(node.val1) == Symbol): 
         return True
     if node.symbol == detection : 
         node = elimination(node)
         if depth != 0  : 
             return node
-        
     if type(node) == Not: 
-        while recursionAlgorithm(detection, elimination, node.val1, depth + 1) != True : node.val1 = recursionAlgorithm(detection, elimination, node.val1, depth + 1)
+        while recursionAlgorithm(detection, elimination, node.val1, depth + 1) != True : 
+            node.val1 = recursionAlgorithm(detection, elimination, node.val1, depth + 1) 
+            
     else : 
-        while recursionAlgorithm(detection, elimination, node.val1, depth + 1) != True :node.val1 = recursionAlgorithm(detection, elimination, node.val1, depth + 1)
-        while recursionAlgorithm(detection, elimination, node.val2, depth + 1) != True : node.val2 = recursionAlgorithm(detection, elimination, node.val2, depth + 1)
+        while recursionAlgorithm(detection, elimination, node.val1, depth + 1) != True :
+            node.val1 = recursionAlgorithm(detection, elimination, node.val1, depth + 1)
+        while recursionAlgorithm(detection, elimination, node.val2, depth + 1) != True :
+            node.val2 = recursionAlgorithm(detection, elimination, node.val2, depth + 1)
     if depth == 0 : return node
     return True
 
 def turnIntoCNF(symbol):
-    for algorithm in [[biconditionalElimation, "↔"], [implicationElimination, "→"]]:#, [notElimination, "¬"]] : 
+    for algorithm in [[biconditionalElimation, "↔"], [implicationElimination, "→"], [notElimination, "¬"]] : 
         detectionSymbol = algorithm[1]
         eliminationFunction = algorithm[0]
         val = recursionAlgorithm(detectionSymbol, eliminationFunction, symbol)
         if val != True : 
             symbol = val
+        
+        print(getStringRepresentation(symbol))
+        print("==" * 100)
     return symbol
 hagrid = Symbol("Hagrid")
 rain = Symbol("Rain")
@@ -284,8 +295,8 @@ world = ModelSpace([hagrid, rain, dumbeldore])
 
 symbol = BiConditional(Implication(hagrid, rain), BiConditional(rain, dumbeldore))
 print(getStringRepresentation(symbol))
-symbol2 = turnIntoCNF(BiConditional(Implication(hagrid, rain), BiConditional(rain, dumbeldore)))
-kb = KnowledgeBase([symbol2])
+symbol2 = turnIntoCNF(BiConditional(Implication(hagrid, rain), BiConditional(BiConditional(hagrid, rain), BiConditional(BiConditional(hagrid, rain), dumbeldore))))
+kb = KnowledgeBase([BiConditional(Implication(hagrid, rain), BiConditional(BiConditional(hagrid, rain), BiConditional(BiConditional(hagrid, rain), dumbeldore)))])
 print("cnf implementation : ")
 print(getStringRepresentation(symbol2))
-#print(world.modelCheckingInfer(symbol, kb))
+print(world.modelCheckingInfer(symbol2, kb))
